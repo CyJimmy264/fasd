@@ -417,35 +417,44 @@ $(fasd --backend $each)"
     esac
 
     if [ "$fnd" ]; then # dafault matching
-      local bre="$(printf %s\\n "$fnd" | sed 's/\([*\.\\\[]\)/\\\1/g
-        s@ @[^|]*@g;s/\$$/|/')"
-      bre='^[^|]*'"$bre"'[^|/]*|'
-      local _ret="$(printf %s\\n "$_fasd_data" | grep "$bre")"
-      [ "$_ret" ] && _ret="$(printf %s\\n "$_ret" | while read -r line; do
-        [ -${typ:-e} "${line%%\|*}" ] && printf %s\\n "$line"
-      done)"
-      if [ "$_ret" ]; then
-        _fasd_data="$_ret"
-      else # no case mathcing
-        _ret="$(printf %s\\n "$_fasd_data" | grep -i "$bre")"
-        [ "$_ret" ] && _ret="$(printf %s\\n "$_ret" | while read -r line; do
-          [ -${typ:-e} "${line%%\|*}" ] && printf %s\\n "$line"
-        done)"
-        if [ "$_ret" ]; then
-          _fasd_data="$_ret"
-        elif [ "${_FASD_FUZZY:-0}" -gt 0 ]; then # fuzzy matching
-          local fuzzy_bre="$(printf %s\\n "$fnd" | \
+        echo "fuzzy matching" >> ~/fasd.log
+
+        local fuzzy_bre="$(printf %s\\n "$fnd" | \
             sed 's/\([*\.\\\[]\)/\\\1/g;s/\$$/|/
               s@\(\\\{0,1\}[^ ]\)@\1[^|/]\\{0,'"$_FASD_FUZZY"'\\}@g
               s@ @[^|]*@g')"
-          fuzzy_bre='^[^|]*'"$fuzzy_bre"'[^|/]*|'
-          _ret="$(printf %s\\n "$_fasd_data" | grep -i "$fuzzy_bre")"
-          [ "$_ret" ] && _ret="$(printf %s\\n "$_ret" | while read -r line; do
+        echo $fuzzy_bre >> ~/fasd.log
+        fuzzy_bre='^[^|]*'"$fuzzy_bre"'[^|/]*|'
+        local _ret="$(printf %s\\n "$_fasd_data" | grep -i "$fuzzy_bre")"
+        [ "$_ret" ] && _ret="$(printf %s\\n "$_ret" | while read -r line; do
             [ -${typ:-e} "${line%%\|*}" ] && printf %s\\n "$line"
           done)"
-          [ "$_ret" ] && _fasd_data="$_ret" || _fasd_data=
+
+        echo $_ret >> ~/fasd.log
+
+        echo "translit matching" >> ~/fasd.log
+
+        local translit_fnd="$(translit "$fnd")"
+        echo $translit_fnd >> ~/fasd.log
+        if [ "$translit_fnd" ]; then
+            local fuzzy_bre="$(printf %s\\n "$translit_fnd" | \
+            sed 's/\([*\.\\\[]\)/\\\1/g;s/\$$/|/
+              s@\(\\\{0,1\}[^ ]\)@\1[^|/]\\{0,'"$_FASD_FUZZY"'\\}@g
+              s@ @[^|]*@g')"
+            echo $fuzzy_bre >> ~/fasd.log
+            fuzzy_bre='^[^|]*'"$fuzzy_bre"'[^|/]*|'
+            local _translit_ret="$(printf %s\\n "$_fasd_data" | grep -i "$fuzzy_bre")"
+            [ "$_translit_ret" ] && _translit_ret="$(printf %s\\n "$_translit_ret" | while read -r line; do
+              [ -${typ:-e} "${line%%\|*}" ] && printf %s\\n "$line"
+            done)"
+
+            echo $_translit_ret >> ~/fasd.log
         fi
-      fi
+
+
+        _fasd_data=
+        [ "$_ret" ] && _fasd_data="$_ret"
+        [ "$_translit_ret" ] && _fasd_data="$(printf %s\\n "$_fasd_data" "$_translit_ret")"
     else # no query arugments
       _fasd_data="$(printf %s\\n "$_fasd_data" | while read -r line; do
         [ -${typ:-e} "${line%%\|*}" ] && printf %s\\n "$line"
